@@ -57,3 +57,33 @@ def test_build_model_frame_no_dead_columns():
     df = build_model_frame(txns, accts)
     assert "login_pressure" not in df.columns
     assert "is_large_amount" not in df.columns
+
+
+def test_build_model_frame_one_account_many_transactions():
+    """A single account with multiple transactions must produce one output row
+    per transaction, with the same account fields repeated on every row."""
+    txns = _transactions(
+        {"transaction_id": 1, "account_id": 10, "amount_usd": 100.0},
+        {"transaction_id": 2, "account_id": 10, "amount_usd": 200.0},
+        {"transaction_id": 3, "account_id": 10, "amount_usd": 300.0},
+    )
+    accts = _accounts({"account_id": 10, "prior_chargebacks": 2, "kyc_level": "basic"})
+    df = build_model_frame(txns, accts)
+    assert len(df) == 3
+    assert (df["prior_chargebacks"] == 2).all(), \
+        "account field must be present on every transaction row"
+    assert (df["kyc_level"] == "basic").all()
+    assert list(df["transaction_id"]) == [1, 2, 3]
+
+
+def test_build_model_frame_preserves_transaction_fields():
+    """Merge must not clobber or drop any transaction-level column."""
+    txns = _transactions(
+        {"transaction_id": 42, "account_id": 10, "amount_usd": 99.0,
+         "failed_logins_24h": 3},
+    )
+    accts = _accounts({"account_id": 10})
+    df = build_model_frame(txns, accts)
+    assert df.iloc[0]["transaction_id"] == 42
+    assert df.iloc[0]["amount_usd"] == 99.0
+    assert df.iloc[0]["failed_logins_24h"] == 3
