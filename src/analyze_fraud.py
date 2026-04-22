@@ -35,7 +35,7 @@ def summarize_results(scored: pd.DataFrame, chargebacks: pd.DataFrame) -> pd.Dat
             total_amount_usd=("amount_usd", "sum"),
             avg_amount_usd=("amount_usd", "mean"),
         )
-        .sort_values("risk_label")
+        .sort_values("risk_label", key=lambda s: s.map({"high": 0, "medium": 1, "low": 2}))
     )
 
     known_fraud = scored.merge(chargebacks[["transaction_id"]], on="transaction_id", how="left", indicator=True)
