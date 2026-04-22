@@ -22,7 +22,7 @@ Act like a careful analytics engineer supporting fraud operations and business l
 ## Validation
 After edits, run:
 - `python src/analyze_fraud.py`
-- `pytest`
+- `python3 -m pytest`
 
 ## Important Business Context
 Business users care about:

@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Dict
 
 
+_HIGH_RISK_MERCHANTS = {"gift_cards", "crypto"}
+
+
 def score_transaction(tx: Dict) -> int:
     """Return a simple fraud risk score from 0 to 100."""
     score = 0
@@ -15,7 +18,6 @@ def score_transaction(tx: Dict) -> int:
     if tx["is_international"] == 1:
         score += 15
 
-    # High purchase amounts should matter.
     if tx["amount_usd"] >= 1000:
         score += 25
     elif tx["amount_usd"] >= 500:
@@ -36,6 +38,19 @@ def score_transaction(tx: Dict) -> int:
         score += 20
     elif tx["prior_chargebacks"] == 1:
         score += 5
+
+    # Very new accounts carry more fraud risk than established ones.
+    age = tx.get("account_age_days", 365)
+    if age < 30:
+        score += 20
+    elif age < 90:
+        score += 10
+
+    if tx.get("kyc_level") == "basic":
+        score += 10
+
+    if tx.get("merchant_category") in _HIGH_RISK_MERCHANTS:
+        score += 15
 
     return max(0, min(score, 100))
 

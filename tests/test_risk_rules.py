@@ -27,6 +27,9 @@ def _clean_tx(**overrides):
         "velocity_24h": 1,
         "failed_logins_24h": 0,
         "prior_chargebacks": 0,
+        "account_age_days": 365,
+        "kyc_level": "full",
+        "merchant_category": "grocery",
     }
     base.update(overrides)
     return base
@@ -94,6 +97,57 @@ def test_prior_chargebacks_raise_score():
 
 # --- compound case ---
 
+# --- account age (new signal) ---
+
+def test_very_new_account_raises_score():
+    established = score_transaction(_clean_tx(account_age_days=365))
+    very_new = score_transaction(_clean_tx(account_age_days=15))
+    assert very_new > established, "account < 30 days old should raise the score"
+
+
+def test_new_account_raises_more_than_medium_age():
+    medium_age = score_transaction(_clean_tx(account_age_days=60))
+    very_new = score_transaction(_clean_tx(account_age_days=15))
+    assert very_new > medium_age
+
+
+def test_established_account_adds_no_risk():
+    score_90 = score_transaction(_clean_tx(account_age_days=90))
+    score_500 = score_transaction(_clean_tx(account_age_days=500))
+    assert score_90 == score_500, "accounts >= 90 days old should not differ in score"
+
+
+# --- kyc_level (new signal) ---
+
+def test_basic_kyc_raises_score():
+    full_kyc = score_transaction(_clean_tx(kyc_level="full"))
+    basic_kyc = score_transaction(_clean_tx(kyc_level="basic"))
+    assert basic_kyc > full_kyc, "basic KYC should raise the score vs full KYC"
+
+
+# --- merchant_category (new signal) ---
+
+def test_gift_cards_merchant_raises_score():
+    low_risk = score_transaction(_clean_tx(merchant_category="grocery"))
+    high_risk = score_transaction(_clean_tx(merchant_category="gift_cards"))
+    assert high_risk > low_risk, "gift_cards merchant should raise the score"
+
+
+def test_crypto_merchant_raises_score():
+    low_risk = score_transaction(_clean_tx(merchant_category="grocery"))
+    high_risk = score_transaction(_clean_tx(merchant_category="crypto"))
+    assert high_risk > low_risk, "crypto merchant should raise the score"
+
+
+def test_standard_merchant_adds_no_risk():
+    grocery = score_transaction(_clean_tx(merchant_category="grocery"))
+    electronics = score_transaction(_clean_tx(merchant_category="electronics"))
+    travel = score_transaction(_clean_tx(merchant_category="travel"))
+    assert grocery == electronics == travel
+
+
+# --- compound case ---
+
 def test_all_risky_signals_score_high():
     tx = {
         "device_risk_score": 80,
@@ -102,6 +156,9 @@ def test_all_risky_signals_score_high():
         "velocity_24h": 8,
         "failed_logins_24h": 6,
         "prior_chargebacks": 3,
+        "account_age_days": 10,
+        "kyc_level": "basic",
+        "merchant_category": "gift_cards",
     }
     assert score_transaction(tx) == 100, "all risky signals should hit the 100 ceiling"
 
@@ -121,6 +178,9 @@ def test_score_never_exceeds_100():
         "velocity_24h": 99,
         "failed_logins_24h": 99,
         "prior_chargebacks": 99,
+        "account_age_days": 1,
+        "kyc_level": "basic",
+        "merchant_category": "crypto",
     }
     assert score_transaction(tx) <= 100
 
